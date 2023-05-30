@@ -1,0 +1,381 @@
+/////////////////////////////////////////////////////////
+//                                                     //
+//               Master Hack Installer                 //
+//                                                     //
+/////////////////////////////////////////////////////////
+
+#include "Extensions/Hack Installation.txt"
+#include "Necessary/PopupRework/Extensions/PopupDefinitions.txt"
+
+// hack configuration file
+#include "Config.event"
+
+#include "Necessary/UnitMenu/_UnitMenuDefs.event"
+#define PurpleUnitCount 11
+
+////////////////////////////////SUPPORTING CHANGES
+
+PUSH
+  //Include essential fixes and autopatches
+  #include "_FE8EssentialFixes.event"
+  
+  // Debug Startup Screen
+  #ifdef __DEBUG__
+    ORG 0x000AD8   // this is somewhere in the startup routine
+      BL(0x01C090) // Call the debug startup menu
+  #endif
+POP
+
+////////////////////////////////4TH ALLEGIANCE STUFF 1
+PUSH
+
+ORG 0x17BDC 
+BYTE 0xC0 0x20 0xF8 0xE7 // Fix 4th allegiance units not being loaded
+
+ORG 0x59EEC0 
+BYTE $90 $42 $0B $35 $B5 $76 $9C $7F $8F $29 $38 $26 $FF $67 $0B $31 $90 $49 $77 $72 $1A $7F $5D $0C $FF $17 $30 $3A $FF $7F $A9 $20
+
+//Fix Enemies being able to go through purple units
+ORG $800 //modifies movement ARM code
+WORD 0xE59FC000 0xE12FFF1C //ldr r12,pc+8; bx r12
+POIN NewMovementCheck|1
+
+ORG 0x3D60A
+BYTE 0xFF // Fix attack AI not targetting purple units
+
+// FE8U:0x08019FA0 - RefreshUnitsOnBmMap
+ORG 0x1A160
+BYTE 0xC0 + PurpleUnitCount // Display more units during AI phases
+
+// FE8U:0x080275E8 - PutUnitSpriteIconsOam
+ORG 0xD7C12 // FE8U:0x80D7C0C = rescuePalLut
+SHORT 0x000B // use palette 0xB for purple rescue icon
+ORG 0x275F8
+SHORT 0x2208 // expand memcpy to load 8 bytes instead of 6
+
+// FE8U:0x080275E8 - PutUnitSpriteIconsOam
+ORG 0x27A02
+BYTE 0xC0 + PurpleUnitCount - 1 // Loop terminator; vanilla: 0xBF
+
+ORG 0x30E3C
+BYTE 0xC0 // Makes turn 0 start on Neutral Phase, so it can properly switch to player phase on turn 1
+
+ORG 0x1F326
+SHORT 0xE00D
+ORG 0x1F344
+jumpToHack(LoadEnemyOrNeutralPhaseGraphics)
+
+ORG 0x15470
+SHORT 0xE004
+ORG 0x1DF2C
+SHORT 0xE004 // Hopefully making phase 0xC0 work
+
+ORG 0x3E642
+SHORT 0xB084 // Expand the stack
+ORG 0x3E694
+POIN gPhaseUnitCountTable // Add the neutral unit count
+ORG 0x3E64C
+SHORT 0xC878 0xC178 // Add one more unit count to the array
+ORG 0x3E686
+SHORT 0xB004 // Expand the stack
+
+ORG 0x399B6
+SHORT 0xB084
+ORG 0x39A44
+POIN gPhaseUnitCountTable
+ORG 0x399C8
+SHORT 0xC8D8 0xC1D8
+ORG 0x39A2E
+SHORT 0xB004
+
+ORG 0x397B6
+SHORT 0xB084
+ORG 0x39840
+POIN gPhaseUnitCountTable
+ORG 0x397C4
+SHORT 0xC8D8 0xC1D8
+ORG 0x39830
+SHORT 0xB004
+
+ORG 0x10150
+POIN CheckAllegianceFix
+
+ORG 0x3E8A0
+SHORT 0xE006 // Make purple units use the green units escape point table
+
+// Minimug box palette
+ORG 0x8C2E4
+SHORT 0xE004
+ORG 0x8C2F0
+jumpToHack(LoadEnemyOrNeutralMinimugBoxPalette)
+
+ORG 0x8B08B6
+SHORT 0
+
+ORG 0x3125A
+BYTE 0xC0 + PurpleUnitCount // Clearing units after chapter end
+
+ORG 0x1A0C0
+BYTE 0xC0 + PurpleUnitCount // Loading units(RefreshUnitMapAndVision)
+
+ORG 0x27284
+BYTE 0xC0 + PurpleUnitCount // Standing map sprites showing up
+
+#include "NewUnitRAMPointerSetter.event"
+POP
+
+#include "FourthAllegiance\FourthAllegiance.event"
+
+
+
+ALIGN 4
+#define FactionRelations(blue, green, red, purple, blue2, green2, red2, purple2, blue3, green3, red3, purple3, blue4, green4, red4, purple4) "SHORT blue|(green<<1)|(red<<2)|(purple<<3)|(blue2<<4)|(green2<<5)|(red2<<6)|(purple2<<7)|(blue3<<8)|(green3<<9)|(red3<<10)|(purple3<<11)|(blue4<<12)|(green4<<13)|(red4<<14)|(purple4<<15)"
+#define TRUE 1
+#define FALSE 0
+
+#include "VanillaFactionRelationsSetter.event"
+
+ALIGN 4
+
+MESSAGE AreAllegiancesAllied
+
+#include "Necessary/ExpandedModularSave/ExModularSave.event"
+
+ALIGN 4
+NewMovementCheck:
+#incbin "asm/NewMovementCheck.dmp"
+POIN AreAllegiancesAllied
+
+ALIGN 4
+LoadEnemyOrNeutralPhaseGraphics:
+#incbin "asm/LoadEnemyOrNeutralPhaseGraphics.dmp"
+POIN NeutralPhaseBannerGraphics
+POIN NeutralPhaseBannerPalette
+
+ALIGN 4
+CheckAllegianceFix:
+#incbin "asm/CheckAllegianceFix.dmp"
+
+ALIGN 4
+LoadEnemyOrNeutralMinimugBoxPalette:
+#incbin "asm/LoadEnemyOrNeutralMinimugBoxPalette.dmp"
+POIN NeutralMinimugBoxPalette
+
+ALIGN 4
+NeutralPhaseBannerGraphics:
+#incext Png2Dmp "NeutralPhaseBanner.png" --lz77
+
+ALIGN 4
+NeutralPhaseBannerPalette:
+#incext Png2Dmp "NeutralPhaseBanner.png" --palette-only
+
+ALIGN 4
+NeutralMinimugBoxPalette:
+#incext Png2Dmp "NeutralMinimugBox.png" --palette-only
+
+ALIGN 4
+gPhaseUnitCountTable: // Originally at 0xD8680
+WORD 51 // Player
+WORD 20 // NPC
+WORD 50 // Enemy
+WORD PurpleUnitCount // Neutral
+
+////////////////////////////////FREE SPACE WITHIN BL RANGE
+
+PUSH
+ORG FreeSpaceBLRange //defined in custom definitions
+#define inBLRange
+
+  //Talk and Support don't end your turn
+  #include "QualityOfLife/ContemporaryTalkSupport/ContemporaryTalkSupport.event"
+
+  //Hold L to toggle Anims
+  #include "QualityOfLife/LToggle/LToggle.event"
+
+  //negative wt/crit
+  #include "QualityOfLife/NegativeWStatDisplay/NegativeDisplay.event"
+
+  //clears the gamble/lunge/mercy when cancelling out of attack menu
+  Unset_Attack_Flag:
+  #incbin "SkillSystem/Internals/unset_attack_flag.dmp"
+
+  #ifdef USE_STRMAG_SPLIT
+	#include "ExternalHacks/StrMagSplit/BLRange.event"
+  #endif // USE_STRMAG_SPLIT
+	
+#undef inBLRange
+POP
+
+////////////////////////////////FREE SPACE OUT OF BL RANGE
+
+  // Display damage numbers in battle animations.
+  #include "ExternalHacks/AnimNumbers/AnimNumbers.event"
+
+  //HP Bars (and effective weapon warning)
+  #include "QualityOfLife/HpBars/HpBars.event"
+
+  //Improved Sound Mixer
+  #include "QualityOfLife/ImprovedSoundMixer/SoundMixer.event"
+
+  //Danger Zone (select button)
+  #include "QualityOfLife/DangerZone/DangerZone.event"
+
+  //Event Writer ASMC
+  #include "QualityOfLife/EventWriter/EventWriter.event"
+
+  //Casual Mode (based on Event ID 0xB0)
+  #include "QualityOfLife/CasualMode/CasualMode.event"
+
+  //Movement Arrow doesn't update on allies
+  #include "QualityOfLife/MovementArrowHack/MovementArrowHack.event"
+
+  //Negative Stat Boosts
+  #include "Necessary/NegativeStatBoosts/NegativeStatBoosts.event"
+
+  //Trap Rework (Dragon Veins & Heal Tiles)
+  #include "ExternalHacks/TrapRework/TrapRework.event"
+  
+  //Proper Range Getters
+  #include "ExternalHacks/ProperRangeGetters/ProperRangeGetters/ProperRangeGetters.event"
+
+  //Leadership Stars
+  #include "ExternalHacks/LeadershipStars/LeadershipStars.event"
+  
+  //Biorhythm
+  #include "ExternalHacks/Biorhythm/Biorhythm.event"
+
+  //Modular Stat Screen
+  #include "Necessary/ModularStatScreen/ModularStatScreen.event"
+  
+  // Strength/Magic Split
+  #ifdef USE_STRMAG_SPLIT
+  
+	#include "ExternalHacks/StrMagSplit/_MasterAsmInstaller.event"
+	
+  #endif // USE_STRMAG_SPLIT
+  
+  //Anima Triangle
+  #include "ExternalHacks/AnimaTriangle/AnimaTriangle.event"
+  
+  //Modular EXP
+  #include "ExternalHacks/ModularEXP/ModularEXP.event"
+  
+  //Portrait Selection
+  #include "ExternalHacks/PortraitSelectASM/PortraitSelectionASM.event"
+	
+  //Stairs
+  #include "ExternalHacks/Stairs/Stairs.event"
+
+  //Raid
+  #include "ExternalHacks/Raid/Raid.event"
+  
+  //Escape-Arrive
+  #include "ExternalHacks/EscapeArrive/EscapeArrive.event"
+  
+  //Debuffs
+  #include "Necessary/Debuffs/Debuffs.event"
+
+  //Stat Screens palette by allegiance
+  #include "ExternalHacks/StatScreenAllegiance/StatScreenAllegiance.event"
+
+  //Menu Semitransparency
+  #include "QualityOfLife/SemitransparencyChanges.event"
+
+  //Supply available in prologue
+  #include "QualityOfLife/PrologueSupply.event"
+  
+  //Item Range Fix
+  #include "Necessary/ItemRangeFix/ItemRangeFix.event"
+  
+  //Chapter Names as Text
+  #include "QualityOfLife/TextChNames/TextChNames.event"
+
+  //PC and Generic Music Hack (writes to e80000/e90000)
+  #include "QualityOfLife/PCAndGenericMusic.event"
+
+  #include "QualityOfLife/EventRescue/EventRescue.event"
+  #include "QualityOfLife/EventAddTraps/EventAddTraps.event"
+  #include "QualityOfLife/EventSendToConvoy/EventSendToConvoy.event"
+
+  // Fix gaining wexp from weapons you don't have wexp in (for Shadowgift/Lumina)
+  #include "Necessary/FixWpnRnk.event"
+  
+  //Unit Action Rework (required for movement skills)
+  #include "Necessary/UnitActionRework/UnitActionRework.event"
+
+  //Change Sick Status to Freeze
+  #include "ExternalHacks/Freeze/Freeze.event"
+  #include "ExternalHacks/Freeze/EventFreeze.event"
+  
+  //Reaver Split
+  ALIGN 4
+  #include "ExternalHacks/ReaverSplit/ReaverSplit.event"
+  
+  //Cannot Crit
+  ALIGN 4
+  #include "ExternalHacks/CannotCrit/CannotCrit.event"
+  
+  //AdvWeaponLocks
+  ALIGN 4
+  #include "ExternalHacks/WeaponLockArray/AdvWeaponLocks.event"
+  
+  //Status-Inflicting Weapons
+  ALIGN 4
+  #include "ExternalHacks/StatusWeapons/StatusWeapons.event"
+  
+  //Narrow Fonts by Scraiza
+  ALIGN 4
+  #include "ExternalHacks/NarrowFont/NarrowFontInstaller.event"
+  
+  //Crit Cap
+  #ifdef CRIT_CAP
+    #include "ExternalHacks/CritCap/CritCap.event"
+  #endif
+
+  //Item Effect Revamp by Teraspark
+  #include "Necessary/ItemEffectRevamp/IERevamp_Installer.event"
+  
+  //Durability-Based Items, for Skill Scrolls
+  #include "Necessary/DurabilityBasedItems/DurabilityBasedItems.event"
+  
+  //Generic routines that other things may rely on 
+  #include "Necessary/Routines/Installer.event" 
+
+  // Gaiden Magic 2.0
+  #include "ExternalHacks/GaidenMagic/GaidenMagic.event"
+  
+  #ifdef INSTALL_AoE
+	#include "ExternalHacks/AoE/Installer.event"
+  #endif 
+  
+  // Unlock working on chests
+  #include "ExternalHacks/UnlockChest/UnlockChest.event"
+  
+  ALIGN 4
+  #include "SkillSystem/SkillSystemInstaller.event"
+
+  ALIGN 4
+  #include "QualityOfLife/DisplayWRankOnLevelUp/DisplayWRankOnLevelUp.event"
+
+  ALIGN 4
+  #include "QualityOfLife/BattleStatsWithAnimsOff/FE8-BattleStats.event"
+  
+  ALIGN 4
+  #include "Necessary/StatGetters/_InstallStatGetters.event"
+  
+  //Growth Getters
+  #include "Necessary/GrowthGetters/GrowthGetters.event"
+  
+  ALIGN 4
+  #include "Necessary/IconRework/IconRework.event"   // Allows using standard Icon routines to draw skill icons
+  #include "Necessary/PopupRework/PopupRework.event" // Allows to expand on vanilla popups by adding components
+  
+  #include "Necessary/UnitMenu/UnitMenu.event"
+  #include "Necessary/Popups.event"
+  
+  #include "Necessary/CalcLoops/CalcLoops.event"
+
+  // Save/Suspend Expansion
+    MESSAGE "Using EMS Save/Suspend Expansion"
+    #include "Necessary/ExpandedModularSave/ExModularSave.event"
+
